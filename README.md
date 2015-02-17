@@ -1,4 +1,4 @@
-PyRaumfeld 0.2
+PyRaumfeld 0.3
 ========
 
 Python library for controlling the Teufel Raumfeld system
