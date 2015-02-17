@@ -48,22 +48,22 @@ Zone-Configuration-Functions are:
 
 Global variables:
 * hostBaseURL (readonly) the base URL of the host
-* debug (True/False) to show debug messages'''
+'''
 
-import atexit
-import urllib
-import urllib2
+import logging
 import socket
 import time
 import threading
+import urllib
+import urllib2
 import xml.dom.minidom
 
-#from copy import deepcopy
 from pysimplesoap.client import SoapClient
 from httplib import BadStatusLine
+from uuid import uuid4
 from urllib2 import URLError
 
-__version__ = '0.2'
+__version__ = '0.3'
 
 __zones = []
 __zonesLock = threading.Lock()
@@ -81,15 +81,12 @@ __newZoneDataEvent = threading.Event()
 __newDeviceDataEvent = threading.Event()
 __dataProcessedEvent = threading.Event()
 
+__sessionUUID = uuid4().hex
 __mediaServerUDN = ""
 __callback = None
 
 hostBaseURL = "http://hostip:47365"
-debug = False
-
-def __debugLog(msg):
-    if debug == True:
-        print(msg) 
+logging.basicConfig(level=logging.INFO)
 
 class Zone(object):
     """Raumfeld Zone"""
@@ -152,7 +149,7 @@ class Zone(object):
         """
         if uri:
             self._avTransport.SetAVTransportURI(
-                InstanceID=1, CurrentURI=uri, CurrentURIMetaData="")
+                InstanceID=0, CurrentURI=uri, CurrentURIMetaData="")
         else:
             self._avTransport.Play(InstanceID=1, Speed=2)
 
@@ -185,6 +182,9 @@ class Zone(object):
     @volume.setter
     def volume(self, value):
         self._renderingControl.SetVolume(InstanceID=1, DesiredVolume=value)
+
+    def changeVolume(self, value):
+        self._renderingControl.ChangeVolume(InstanceID=1, Amount=value)
 
     @property
     def mute(self):
@@ -400,11 +400,11 @@ def __listDevicesThread():
     
     while True:
         try:
-            request = urllib2.Request("{0}/listDevices".format(hostBaseURL), headers={"updateID" : listDevices_updateID})
+            request = urllib2.Request("{0}/{1}/listDevices".format(hostBaseURL, __sessionUUID), headers={"updateID" : listDevices_updateID})
             response = urllib2.urlopen(request)
             listDevices_updateID = response.info().getheader('updateID')
             devices_xml = response.read()
-            __debugLog(devices_xml.decode('utf-8'))
+            logging.debug(devices_xml.decode('utf-8'))
             dom = xml.dom.minidom.parseString(devices_xml)
             
             __deviceElementsLock.acquire()
@@ -420,7 +420,7 @@ def __listDevicesThread():
             __newDeviceDataEvent.set()
             __dataProcessedEvent.wait()
         except (BadStatusLine, URLError):
-            __debugLog("Connection to host was lost. waiting 1 second and retrying...");
+            logging.warning("Connection to host was lost. waiting 1 second and retrying...");
             time.sleep(1)
     
 def __getZonesThread():
@@ -430,11 +430,11 @@ def __getZonesThread():
     
     while True:
         try:
-            request = urllib2.Request("{0}/getZones".format(hostBaseURL), headers={"updateID" : getZones_updateID})
+            request = urllib2.Request("{0}/{1}/getZones".format(hostBaseURL, __sessionUUID), headers={"updateID" : getZones_updateID})
             response = urllib2.urlopen(request)
             getZones_updateID = response.info().getheader('updateID')
             zone_xml = response.read()
-            __debugLog(zone_xml.decode('utf-8'))
+            logging.debug(zone_xml.decode('utf-8'))
             dom = xml.dom.minidom.parseString(zone_xml)
             
             __zoneElementsLock.acquire()
@@ -453,7 +453,7 @@ def __getZonesThread():
             __newZoneDataEvent.set()
             __dataProcessedEvent.wait()
         except (BadStatusLine, URLError):
-            __debugLog("Connection to host was lost. waiting 1 second and retrying...");
+            logging.warning("Connection to host was lost. waiting 1 second and retrying...");
             time.sleep(1)
       
 def __updateZonesAndRoomsThread():
@@ -622,10 +622,10 @@ def __updateZonesAndRoomsThread():
         __unassignedElementsLock.release()
         __unassignedRoomsLock.release()
         
-        __debugLog("Unresolved:")
-        __debugLog(unresolved_devices)
+        logging.debug("Unresolved devices: " + str(unresolved_devices))
                 
         if (__callback !=None) & (len(unresolved_devices) == 0):
+            logging.info("Zone configuration changed.")
             __callback()
 
         # Notify the observing threads to continue
@@ -689,7 +689,7 @@ def __discoverHost():
     while True:
         try:
             response = sock.recv(2048).decode('utf-8')
-            #__debugLog(response)
+            #logging.debug(response)
             for line in response.split('\r\n'):
                 if line.startswith('Location: '):
                     sock.close()
@@ -704,9 +704,9 @@ def __discoverHost():
     return ""
 
 def __cleanup(updateThread):
-    print("Stopping Update Threads:")
+    logging.debug("Stopping Update Threads:")
     #updateThread.join()
-    print("done.")
+    logging.debug("done.")
     
 
 def registerChangeCallback(callback):
@@ -844,7 +844,7 @@ def init(hostIPAddress = ""):
     if hostIPAddress == "":
         hostIPAddress = __discoverHost()
     if hostIPAddress == "":
-        print("Cannot determine host IP Address.")
+        logging.warning("Cannot determine host IP Address.")
         return
     
     hostBaseURL = "http://{0}:47365".format(hostIPAddress)
@@ -853,7 +853,6 @@ def init(hostIPAddress = ""):
     updateThread = threading.Thread(target=__updateZonesAndRoomsThread)
     updateThread.daemon = True
     updateThread.start()
-    #atexit.register(__cleanup, updateThread)
     __dataProcessedEvent.wait()
 
 if __name__ == '__main__':
