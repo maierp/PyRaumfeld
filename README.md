@@ -50,3 +50,7 @@ The Lib provides a data structure representing the Zone and room config of Raumf
 ###Global variables:
 * hostBaseURL (readonly) the base URL of the host
 * debug (True/False) to show debug messages
+
+##Sample Programs:
+* PyRaumfeldSample.py: Shows the basic usage
+* RaumfeldControl.py: Provides a web-based API to the Raumfeld system
