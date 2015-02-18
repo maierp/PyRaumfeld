@@ -87,6 +87,7 @@ __callback = None
 
 hostBaseURL = "http://hostip:47365"
 logging.basicConfig(level=logging.INFO)
+socket.setdefaulttimeout(None)
 
 class Zone(object):
     """Raumfeld Zone"""
@@ -419,7 +420,7 @@ def __listDevicesThread():
             # signal changes
             __newDeviceDataEvent.set()
             __dataProcessedEvent.wait()
-        except (BadStatusLine, URLError):
+        except (BadStatusLine, URLError, socket.timeout):
             logging.warning("Connection to host was lost. waiting 1 second and retrying...");
             time.sleep(1)
     
@@ -452,7 +453,7 @@ def __getZonesThread():
             # signal changes
             __newZoneDataEvent.set()
             __dataProcessedEvent.wait()
-        except (BadStatusLine, URLError):
+        except (BadStatusLine, URLError, socket.timeout):
             logging.warning("Connection to host was lost. waiting 1 second and retrying...");
             time.sleep(1)
       
