@@ -257,12 +257,12 @@ def __resetUpdateAvailableEventThread():
         updateAvailableEvent.clear()
         
 
-raumfeld.init('10.10.10.93')
+raumfeld.registerChangeCallback(__updateAvailableCallback)
+raumfeld.init()
 
 # Start observing the device list
 resetUpdateAvailableEventThread = threading.Thread(target=__resetUpdateAvailableEventThread)
 resetUpdateAvailableEventThread.daemon = True
 resetUpdateAvailableEventThread.start()
-raumfeld.registerChangeCallback(__updateAvailableCallback)
 
 run(host='0.0.0.0', port=8080, debug=True)

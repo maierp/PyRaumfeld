@@ -667,7 +667,6 @@ def __getDeviceByUDN(deviceElements, udn):
 def __discoverHost():
     """Discover the Raumfeld Host and return the IP Address"""
     
-    timeout = 1
     group = ('239.255.255.250', 1900)
     service = 'urn:schemas-raumfeld-com:device:ConfigDevice:1'
     message = '\r\n'.join(['M-SEARCH * HTTP/1.1',
@@ -676,7 +675,7 @@ def __discoverHost():
                            'ST: {st}',
                            'MX: 1', '', '']).format(group=group, st=service)
 
-    socket.setdefaulttimeout(timeout)
+    socket.setdefaulttimeout(10)
     sock = socket.socket(socket.AF_INET,
                          socket.SOCK_DGRAM,
                          socket.IPPROTO_UDP)
@@ -697,10 +696,13 @@ def __discoverHost():
                     location = line.split(' ')[1].strip()
                     # Extract the netloc fragment of the URL
                     netloc = urllib2.urlparse.urlparse(location)[1]
+                    sock.close()
+                    socket.setdefaulttimeout(None)
                     # Return the IP-Address
                     return netloc.split(':')[0]
         except socket.timeout:
             sock.close()
+            socket.setdefaulttimeout(None)
             break
     return ""
 
