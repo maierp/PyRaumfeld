@@ -86,12 +86,12 @@ __mediaServerUDN = ""
 __callback = None
 
 hostBaseURL = "http://hostip:47365"
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.INFO)
 socket.setdefaulttimeout(None)
 
 class Zone(object):
     """Raumfeld Zone"""
-    
+
     def __init__(self, name, udn, location):
         self._rooms = []
         self._udn = udn
@@ -128,12 +128,12 @@ class Zone(object):
     def Name(self):
         """Get the name of the zone"""
         return self._name
-    
+
     @property
     def UDN(self):
         """Get the UDN of the zone"""
         return self._udn
-    
+
     @property
     def Location(self):
         """Get the location URI"""
@@ -144,11 +144,14 @@ class Zone(object):
         """Get the network address"""
         return self._address
 
-    def play(self, uri=None):
+    def play(self, uri=None, meta=None):
         """Start playing
         :param uri: (optional) play a specific uri
         """
-        if uri:
+        if meta:
+            self._avTransport.SetAVTransportURI(
+                InstanceID=0, CurrentURI=uri, CurrentURIMetaData=meta)
+        elif uri:
             self._avTransport.SetAVTransportURI(
                 InstanceID=0, CurrentURI=uri, CurrentURIMetaData="")
         else:
@@ -165,7 +168,11 @@ class Zone(object):
     def pause(self):
         """Pause"""
         self._avTransport.Pause(InstanceID=1)
-        
+
+    def seek(self, target, unit = 'ABS_TIME'):
+        """Seek; unit = _ABS_TIME_/REL_TIME/TRACK_NR"""
+        return self._avTransport.Seek(InstanceID=1, Unit = unit, Target = target)
+
     @property
     def transport_state(self):
         """Get Current Transport State"""
@@ -217,10 +224,25 @@ class Zone(object):
         """Get TrackURIMetaData"""
         return self._avTransport.GetPositionInfo(InstanceID=1).TrackMetaData
 
+    @property
+    def track_duration(self):
+        """Get TrackDuration"""
+        return self._avTransport.GetPositionInfo(InstanceID=1).TrackDuration
+
+    @property
+    def track_rel_time(self):
+        """Get RelTime"""
+        return self._avTransport.GetPositionInfo(InstanceID=1).RelTime
+
+    @property
+    def track_abs_time(self):
+        """Get AbsTime"""
+        return self._avTransport.GetPositionInfo(InstanceID=1).AbsTime
+
     def getRooms(self):
         """Returns the list of rooms in this zone"""
         return self._rooms;
-    
+
     def getRoomsByName(self, name):
         """Searches for rooms with a special name"""
         rooms= []
@@ -228,10 +250,10 @@ class Zone(object):
             if room.Name.find(name):
                 rooms.append(room)
         return rooms
-    
+
 class Room(object):
     """Raumfeld Room"""
-    
+
     def __init__(self, name, udn):
         self._renderers = []
         self._udn = udn
@@ -254,16 +276,16 @@ class Room(object):
     def Name(self):
         """Get the name of the device"""
         return self._name
-    
+
     @property
     def UDN(self):
         """Get the UDN of the device"""
         return self._udn
-        
+
     def getRenderers(self):
         """Returns the list of renderers in this zone"""
         return self._renderers
-    
+
     @property
     def volume(self):
         """get/set the current volume"""
@@ -284,7 +306,7 @@ class Room(object):
 
 class Renderer(object):
     """Raumfeld Renderer"""
-    
+
     def __init__(self, name, udn, location):
         self._name = name
         self._udn = udn
@@ -302,17 +324,17 @@ class Renderer(object):
             action='urn:schemas-upnp-org:service:AVTransport:1#',
             namespace='http://schemas.xmlsoap.org/soap/envelope/',
             soap_ns='soap', ns='s', exceptions=False)
-            
+
     @property
     def Name(self):
         """Get the name of the renderer"""
         return self._name
-    
+
     @property
     def UDN(self):
         """Get the UDN of the renderer"""
         return self._udn
-    
+
     @property
     def Location(self):
         """Get the location URI"""
@@ -322,7 +344,7 @@ class Renderer(object):
     def Address(self):
         """Get the network address"""
         return self._address
-    
+
     def play(self, uri=None):
         """Start playing
         :param uri: (optional) play a specific uri
@@ -344,7 +366,7 @@ class Renderer(object):
     def pause(self):
         """Pause"""
         self._avTransport.Pause(InstanceID=1)
-        
+
     @property
     def transport_state(self):
         """Get Current Transport State"""
@@ -398,7 +420,7 @@ def __listDevicesThread():
     """Thread for LongPolling the listDevices Web-Service of Raumfeld"""
     global hostBaseURL, __newDeviceDataEvent, __dataProcessedEvent, __deviceElements, __deviceElementsLock
     listDevices_updateID = ''
-    
+
     while True:
         try:
             request = urllib2.Request("{0}/{1}/listDevices".format(hostBaseURL, __sessionUUID), headers={"updateID" : listDevices_updateID})
@@ -407,28 +429,28 @@ def __listDevicesThread():
             devices_xml = response.read()
             logging.debug(devices_xml.decode('utf-8'))
             dom = xml.dom.minidom.parseString(devices_xml)
-            
+
             __deviceElementsLock.acquire()
             __deviceElements = dom.getElementsByTagName("device")
             __deviceElementsLock.release()
-    
+
             for device_element in __deviceElements:
                 if device_element.childNodes[0].nodeValue == "Raumfeld MediaServer":
                     __mediaServerUDN = device_element.getAttribute("udn")
                     break
-    
+
             # signal changes
             __newDeviceDataEvent.set()
             __dataProcessedEvent.wait()
         except (BadStatusLine, URLError, socket.timeout):
             logging.warning("Connection to host was lost. waiting 1 second and retrying...");
             time.sleep(1)
-    
+
 def __getZonesThread():
     """Thread for LongPolling the listDevices Web-Service of Raumfeld"""
     global hostBaseURL, __newZoneDataEvent, __dataProcessedEvent, __zoneElements, __zoneElementsLock, __unassignedElements, __unassignedElementsLock
     getZones_updateID = ''
-    
+
     while True:
         try:
             request = urllib2.Request("{0}/{1}/getZones".format(hostBaseURL, __sessionUUID), headers={"updateID" : getZones_updateID})
@@ -437,11 +459,11 @@ def __getZonesThread():
             zone_xml = response.read()
             logging.debug(zone_xml.decode('utf-8'))
             dom = xml.dom.minidom.parseString(zone_xml)
-            
+
             __zoneElementsLock.acquire()
             __zoneElements = dom.getElementsByTagName("zone")
             __zoneElementsLock.release()
-            
+
             # Get all the unassigned rooms
             __unassignedElementsLock.acquire()
             if dom.getElementsByTagName("unassignedRooms").length > 0:
@@ -449,18 +471,18 @@ def __getZonesThread():
             else:
                 __unassignedElements = []
             __unassignedElementsLock.release()
-    
+
             # signal changes
             __newZoneDataEvent.set()
             __dataProcessedEvent.wait()
         except (BadStatusLine, URLError, socket.timeout):
             logging.warning("Connection to host was lost. waiting 1 second and retrying...");
             time.sleep(1)
-      
+
 def __updateZonesAndRoomsThread():
     """Thread for updating the Zone and Room data structure"""
     global __newZoneDataEvent, __newDeviceDataEvent, __newDeviceElementsEvent, __dataProcessedEvent, __zones, __zonesLock, __unassignedRooms, __unassignedRoomsLock, __zoneElements, __zoneElementsLock, __unassignedElements, __unassignedElementsLock, __deviceElements, __deviceElementsLock, __callback
-        
+
     # Start observing the device list
     deviceListThread = threading.Thread(target=__listDevicesThread)
     deviceListThread.start()
@@ -468,14 +490,14 @@ def __updateZonesAndRoomsThread():
     # Start observing the zone list
     zoneListThread = threading.Thread(target=__getZonesThread)
     zoneListThread.start()
-    
+
     __newDeviceDataEvent.wait()
 
     while True:
         # Wait until there are new zone elements
         __newZoneDataEvent.wait()
         __newZoneDataEvent.clear()
-        
+
         # Process Data...
         # Build data structure and fill with information from listDevices
 
@@ -498,7 +520,7 @@ def __updateZonesAndRoomsThread():
         # Modify data structure
         for zone_element in __zoneElements:
             zone_udn = zone_element.getAttribute("udn")
-            
+
             # Fetch the device information from the listDevices elements
             __deviceElementsLock.acquire()
             zone_device = __getDeviceByUDN(__deviceElements, zone_udn)
@@ -507,9 +529,9 @@ def __updateZonesAndRoomsThread():
                 unresolved_devices.append(zone_udn)
                 continue
             zone_location = zone_device.getAttribute("location")
-            
+
             # Try to get existing zone, otherwise create a new zone
-            zone = __getZoneByUDN(zone_udn) 
+            zone = __getZoneByUDN(zone_udn)
             if zone == None:
                 # Create Zone with information
                 zone = Zone(zone_device.childNodes[0].nodeValue, zone_udn, zone_location)
@@ -517,7 +539,7 @@ def __updateZonesAndRoomsThread():
                 __zones.append(zone)
             else:
                 UDNs.remove(zone.UDN)
-                
+
             # Fill zone with rooms
             for room_element in zone_element.getElementsByTagName("room"):
                 # Try to get existing room, otherwise create a new room
@@ -529,11 +551,11 @@ def __updateZonesAndRoomsThread():
                     zone._rooms.append(room)
                 else:
                     UDNs.remove(room.UDN)
-                    
+
                 # Fill room with renderers
                 for renderer_element in room_element.getElementsByTagName("renderer"):
                     renderer_udn = renderer_element.getAttribute("udn")
-                    
+
                     # Fetch the device information from the listDevices elements
                     __deviceElementsLock.acquire()
                     renderer_device = __getDeviceByUDN(__deviceElements, renderer_udn)
@@ -542,7 +564,7 @@ def __updateZonesAndRoomsThread():
                         unresolved_devices.append(renderer_udn)
                         continue
                     renderer_location = renderer_device.getAttribute("location")
-                    
+
                     # Try to get existing renderer, otherwise create a new renderer
                     renderer = room.getRenderer(renderer_udn)
                     if renderer == None:
@@ -552,7 +574,7 @@ def __updateZonesAndRoomsThread():
                         room._renderers.append(renderer)
                     else:
                         UDNs.remove(renderer.UDN)
-                
+
         # Now delete the remaining UDNs from the data structure, because they don't exist anymore
         for zone_element in __zones:
             for room_element in zone_element._rooms:
@@ -562,11 +584,11 @@ def __updateZonesAndRoomsThread():
                 zone_element._removeRoomByUDN(udn)
         for udn in UDNs:
             __removeZoneByUDN(udn)
-   
+
         __zoneElementsLock.release()
         __zonesLock.release()
 
-        
+
         # Get all the unassigned rooms
         __unassignedRoomsLock.acquire()
         __unassignedElementsLock.acquire()
@@ -593,7 +615,7 @@ def __updateZonesAndRoomsThread():
             # Create the room with information
             for renderer_element in room_element.getElementsByTagName("renderer"):
                 renderer_udn = renderer_element.getAttribute("udn")
-                
+
                 # Fetch the device information from the listDevices elements
                 __deviceElementsLock.acquire()
                 renderer_device = __getDeviceByUDN(__deviceElements, renderer_udn)
@@ -602,7 +624,7 @@ def __updateZonesAndRoomsThread():
                     unresolved_devices.append(renderer_udn)
                     continue
                 renderer_location = renderer_device.getAttribute("location")
-                
+
                 # Try to get existing renderer, otherwise create a new renderer
                 renderer = room.getRenderer(renderer_udn)
                 if renderer == None:
@@ -612,7 +634,7 @@ def __updateZonesAndRoomsThread():
                     room._renderers.append(renderer)
                 else:
                     UDNs.remove(renderer.UDN)
-            
+
         # Now delete the remaining UDNs from the data structure, because they don't exist anymore
         for room_element in __unassignedRooms:
             for udn in UDNs:
@@ -622,16 +644,16 @@ def __updateZonesAndRoomsThread():
 
         __unassignedElementsLock.release()
         __unassignedRoomsLock.release()
-        
+
         logging.debug("Unresolved devices: " + str(unresolved_devices))
-                
+
         if (__callback !=None) & (len(unresolved_devices) == 0):
             logging.info("Zone configuration changed.")
             __callback()
 
         # Notify the observing threads to continue
         __dataProcessedEvent.set()
-        
+
 def __getZoneByUDN(zone_udn):
     """return the zone with the given UDN (private function without lock)"""
     for zone_element in __zones:
@@ -657,16 +679,15 @@ def __removeUnassignedRoomByUDN(udn):
     for room_element in __unassignedRooms:
         if room_element.UDN == udn:
             __unassignedRooms.remove(room_element)
-              
+
 def __getDeviceByUDN(deviceElements, udn):
     """Search and return the device element defined by the UDN from the listDevices elements"""
     for device_element in deviceElements:
         if device_element.getAttribute("udn") == udn:
             return device_element
-       
+
 def __discoverHost():
     """Discover the Raumfeld Host and return the IP Address"""
-    
     group = ('239.255.255.250', 1900)
     service = 'urn:schemas-raumfeld-com:device:ConfigDevice:1'
     message = '\r\n'.join(['M-SEARCH * HTTP/1.1',
@@ -679,6 +700,7 @@ def __discoverHost():
     sock = socket.socket(socket.AF_INET,
                          socket.SOCK_DGRAM,
                          socket.IPPROTO_UDP)
+
     # socket options
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
@@ -710,7 +732,7 @@ def __cleanup(updateThread):
     logging.debug("Stopping Update Threads:")
     #updateThread.join()
     logging.debug("done.")
-    
+
 
 def registerChangeCallback(callback):
     """Method to register a callback function which is called when the data structure has changed"""
@@ -724,7 +746,7 @@ def getMediaServerUDN():
 def getRoomsByName(name):
     """Searches for rooms with a special name"""
     global __zonesLock, __unassignedRoomsLock
-    
+
     __zonesLock.acquire()
     __unassignedRoomsLock.acquire()
     roomList= []
@@ -763,7 +785,7 @@ def getRoomByUDN(udn):
 def getZones():
     """get all discovered zones. Requires initialize('Host-IP-Address')"""
     return __zones
-       
+
 def getUnassignedRooms():
     """get all unassigned rooms. Requires initialize('Host-IP-Address')"""
     return __unassignedRooms
@@ -818,7 +840,7 @@ def getZoneWithRoomName(name):
                 break
     __zonesLock.release()
     return zoneList
-      
+
 def getZoneWithRoomUDN(udn):
     """Returns the zone containing a room defined by its UDN"""
     global __zonesLock
@@ -849,9 +871,8 @@ def init(hostIPAddress = ""):
     if hostIPAddress == "":
         logging.warning("Cannot determine host IP Address.")
         return
-    
-    hostBaseURL = "http://{0}:47365".format(hostIPAddress)
 
+    hostBaseURL = "http://{0}:47365".format(hostIPAddress)
     # Start Thread which keeps the data structure updated
     updateThread = threading.Thread(target=__updateZonesAndRoomsThread)
     updateThread.daemon = True
