@@ -8,7 +8,12 @@ Python library for controlling the Teufel Raumfeld system
 Based on python-raumfeld by Thomas Feldmann:
 https://github.com/tfeldmann/python-raumfeld
 
-The Lib provides a data structure representing the Zone and room config of Raumfeld
+##The Lib provides:
+* a data structure representing the Zone and room config of Raumfeld
+* playback and information functionality
+* functions for modifying the zone configuration
+* the functionality to register a callback function which gets called as soon as the zone configuration changed
+* immediate data update via long-polling of the Raumfeld WEB-API 
 
 Zone objects:
 * Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata, track_duration, track_rel_time, track_abs_time (readonly)
