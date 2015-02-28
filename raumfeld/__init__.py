@@ -8,15 +8,15 @@ Python library for controlling the Teufel Raumfeld system
 Based on python-raumfeld by Thomas Feldmann:
 https://github.com/tfeldmann/python-raumfeld
 
+The Lib provides a data structure representing the Zone and room config of Raumfeld
+
 Zone objects:
-* Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata  (readonly)
+* Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata, track_duration, track_rel_time, track_abs_time (readonly)
 * volume, mute (read/write)
-* play([uri(optional)]), next(), previous(), pause()
+* changeVolume(amount), play([uri(optional), meta(optional)]), next(), previous(), pause(), seek(amount, unit[_ABS_TIME_|REL_TIME|TRACK_NR])
 * A zone contains a list of Room objects which can be fetched with getRooms() -> returns an array
 * You can search for Rooms in a Zone by calling getRoomsByName(name) -> returns array of found rooms ...
 * ... or for a specific room by calling getRoomByUDN(udn) -> returns the room (None otherwise)
-
-The Lib provides a data structure representing the Zone and room config of Raumfeld
 
 Room objects:
 * Name, UDN (readonly)
@@ -25,13 +25,14 @@ Room objects:
 * You can search for a Renderer in a Room by calling getRenderer(name) -> returns the renderer (None otherwise)
 
 Renderer objects:
-* Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata  (readonly)
-* volume, mute (read/write)
-* play([uri(optional)]), next(), previous(), pause()
+* Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata, track_duration, track_rel_time, track_abs_time (readonly)
+* volume, mute (read/write) 
+* changeVolume(amount), play([uri(optional)]), next(), previous(), pause(), seek(amount, unit[_ABS_TIME_|REL_TIME|TRACK_NR])
 
 Global functions are:
-* init([hostIP(optional)]) this inits the library and searches for the hostIP if none is provided.
+* setLogging(level) sets the logging level: logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL
 * registerChangeCallback(callback) here you can register your function which should be called when something in the data structure has changed
+* init([hostIP(optional)]) this initializes the library and searches for the hostIP if none is provided.
 * getRoomsByName(name) searches for all rooms containing the string in their name
 * getRoomByUDN(udn) returns the Room object defined by the UDN
 * getZones() returns the list of Zone objects
@@ -63,7 +64,7 @@ from httplib import BadStatusLine
 from uuid import uuid4
 from urllib2 import URLError
 
-__version__ = '0.3'
+__version__ = '0.4'
 
 __zones = []
 __zonesLock = threading.Lock()
@@ -86,52 +87,37 @@ __mediaServerUDN = ""
 __callback = None
 
 hostBaseURL = "http://hostip:47365"
-#logging.basicConfig(level=logging.INFO)
 socket.setdefaulttimeout(None)
 
-class Zone(object):
-    """Raumfeld Zone"""
+class Renderer(object):
+    """Raumfeld Renderer"""
 
     def __init__(self, name, udn, location):
-        self._rooms = []
-        self._udn = udn
         self._name = name
+        self._udn = udn
         self._location = location
         scheme, netloc, _, _, _, _ = urllib2.urlparse.urlparse(location)
         self._address = '{0}://{1}'.format(scheme, netloc)
         # ToDo: get correct ControlLocation from the XML file
         self._renderingControl = SoapClient(
-            location='{0}/RenderingService/Control'.format(self._address),
+            location='{0}/RenderingControl/ctrl'.format(self._address),
             action='urn:upnp-org:serviceId:RenderingControl#',
             namespace='http://schemas.xmlsoap.org/soap/envelope/',
             soap_ns='soap', ns='s', exceptions=False)
         self._avTransport = SoapClient(
-            location='{0}/TransportService/Control'.format(self._address),
+            location='{0}/AVTransport/ctrl'.format(self._address),
             action='urn:schemas-upnp-org:service:AVTransport:1#',
             namespace='http://schemas.xmlsoap.org/soap/envelope/',
             soap_ns='soap', ns='s', exceptions=False)
 
-    def _removeRoomByUDN(self, udn):
-        """Remove the room with the UDN from the list of rooms"""
-        for room_element in self._rooms:
-            if room_element.UDN == udn:
-                self._rooms.remove(room_element)
-
-    def getRoomByUDN(self, udn):
-        """Try to get the room of the zone by its UDN"""
-        for room_element in self._rooms:
-            if room_element.UDN == udn:
-                return room_element
-        return None
-
     @property
     def Name(self):
-        """Get the name of the zone"""
+        """Get the name of the renderer"""
         return self._name
 
     @property
     def UDN(self):
-        """Get the UDN of the zone"""
+        """Get the UDN of the renderer"""
         return self._udn
 
     @property
@@ -144,16 +130,14 @@ class Zone(object):
         """Get the network address"""
         return self._address
 
-    def play(self, uri=None, meta=None):
+    def play(self, uri=None, meta=""):
         """Start playing
         :param uri: (optional) play a specific uri
+        :param meta: (optional) meta data in DIDL-Lite format
         """
-        if meta:
+        if uri:
             self._avTransport.SetAVTransportURI(
                 InstanceID=0, CurrentURI=uri, CurrentURIMetaData=meta)
-        elif uri:
-            self._avTransport.SetAVTransportURI(
-                InstanceID=0, CurrentURI=uri, CurrentURIMetaData="")
         else:
             self._avTransport.Play(InstanceID=1, Speed=2)
 
@@ -239,6 +223,42 @@ class Zone(object):
         """Get AbsTime"""
         return self._avTransport.GetPositionInfo(InstanceID=1).AbsTime
 
+
+class Zone(Renderer):
+    """Raumfeld Zone"""
+
+    def __init__(self, name, udn, location):
+        self._rooms = []
+        self._udn = udn
+        self._name = name
+        self._location = location
+        scheme, netloc, _, _, _, _ = urllib2.urlparse.urlparse(location)
+        self._address = '{0}://{1}'.format(scheme, netloc)
+        # ToDo: get correct ControlLocation from the XML file
+        self._renderingControl = SoapClient(
+            location='{0}/RenderingService/Control'.format(self._address),
+            action='urn:upnp-org:serviceId:RenderingControl#',
+            namespace='http://schemas.xmlsoap.org/soap/envelope/',
+            soap_ns='soap', ns='s', exceptions=False)
+        self._avTransport = SoapClient(
+            location='{0}/TransportService/Control'.format(self._address),
+            action='urn:schemas-upnp-org:service:AVTransport:1#',
+            namespace='http://schemas.xmlsoap.org/soap/envelope/',
+            soap_ns='soap', ns='s', exceptions=False)
+
+    def _removeRoomByUDN(self, udn):
+        """Remove the room with the UDN from the list of rooms"""
+        for room_element in self._rooms:
+            if room_element.UDN == udn:
+                self._rooms.remove(room_element)
+
+    def getRoomByUDN(self, udn):
+        """Try to get the room of the zone by its UDN"""
+        for room_element in self._rooms:
+            if room_element.UDN == udn:
+                return room_element
+        return None
+
     def getRooms(self):
         """Returns the list of rooms in this zone"""
         return self._rooms;
@@ -272,6 +292,10 @@ class Room(object):
                 return renderer_element
         return None
 
+    def getRenderers(self):
+        """Returns the list of renderers in this zone"""
+        return self._renderers
+
     @property
     def Name(self):
         """Get the name of the device"""
@@ -281,10 +305,34 @@ class Room(object):
     def UDN(self):
         """Get the UDN of the device"""
         return self._udn
+    
+    def play(self, uri=None, meta=""):
+        """Start playing
+        :param uri: (optional) play a specific uri
+        :param meta: (optional) meta data in DIDL-Lite format
+        """
+        self._renderers[0].play(uri, meta)
 
-    def getRenderers(self):
-        """Returns the list of renderers in this zone"""
-        return self._renderers
+    def next(self):
+        """Next"""
+        self._renderers[0].next()
+
+    def previous(self):
+        """Previous"""
+        self._renderers[0].previous()
+
+    def pause(self):
+        """Pause"""
+        self._renderers[0].pause()
+
+    def seek(self, target, unit = 'ABS_TIME'):
+        """Seek; unit = _ABS_TIME_/REL_TIME/TRACK_NR"""
+        return self._renderers[0].seek(target, unit)
+
+    @property
+    def transport_state(self):
+        """Get Current Transport State"""
+        return self._renderers[0].transport_state()
 
     @property
     def volume(self):
@@ -295,6 +343,9 @@ class Room(object):
     def volume(self, value):
         self._renderers[0].volume = value
 
+    def changeVolume(self, value):
+        self._renderers[0].changeVolume(value)
+
     @property
     def mute(self):
         """get/set the current mute state"""
@@ -304,117 +355,40 @@ class Room(object):
     def mute(self, value):
         self._renderers[0].mute = value
 
-class Renderer(object):
-    """Raumfeld Renderer"""
-
-    def __init__(self, name, udn, location):
-        self._name = name
-        self._udn = udn
-        self._location = location
-        scheme, netloc, _, _, _, _ = urllib2.urlparse.urlparse(location)
-        self._address = '{0}://{1}'.format(scheme, netloc)
-        # ToDo: get correct ControlLocation from the XML file
-        self._renderingControl = SoapClient(
-            location='{0}/RenderingControl/ctrl'.format(self._address),
-            action='urn:upnp-org:serviceId:RenderingControl#',
-            namespace='http://schemas.xmlsoap.org/soap/envelope/',
-            soap_ns='soap', ns='s', exceptions=False)
-        self._avTransport = SoapClient(
-            location='{0}/AVTransport/ctrl'.format(self._address),
-            action='urn:schemas-upnp-org:service:AVTransport:1#',
-            namespace='http://schemas.xmlsoap.org/soap/envelope/',
-            soap_ns='soap', ns='s', exceptions=False)
-
-    @property
-    def Name(self):
-        """Get the name of the renderer"""
-        return self._name
-
-    @property
-    def UDN(self):
-        """Get the UDN of the renderer"""
-        return self._udn
-
-    @property
-    def Location(self):
-        """Get the location URI"""
-        return self._location
-
-    @property
-    def Address(self):
-        """Get the network address"""
-        return self._address
-
-    def play(self, uri=None):
-        """Start playing
-        :param uri: (optional) play a specific uri
-        """
-        if uri:
-            self._avTransport.SetAVTransportURI(
-                InstanceID=1, CurrentURI=uri, CurrentURIMetaData="")
-        else:
-            self._avTransport.Play(InstanceID=1, Speed=2)
-
-    def next(self):
-        """Next"""
-        self._avTransport.Next(InstanceID=1)
-
-    def previous(self):
-        """Previous"""
-        self._avTransport.Previous(InstanceID=1)
-
-    def pause(self):
-        """Pause"""
-        self._avTransport.Pause(InstanceID=1)
-
-    @property
-    def transport_state(self):
-        """Get Current Transport State"""
-        return (self._avTransport.GetTransportInfo(InstanceID=1)
-                .CurrentTransportState)
-
-    @property
-    def volume(self):
-        """get/set the current volume"""
-        try:
-            return int(self._renderingControl.GetVolume(InstanceID=1).CurrentVolume)
-        except:
-            return 0
-
-    @volume.setter
-    def volume(self, value):
-        self._renderingControl.SetVolume(InstanceID=1, DesiredVolume=value)
-
-    @property
-    def mute(self):
-        """get/set the current mute state"""
-        response = self._renderingControl.GetMute(InstanceID=1, Channel=1)
-        return int(response.CurrentMute) == 1
-
-    @mute.setter
-    def mute(self, value):
-        self._renderingControl.SetMute(InstanceID=1, DesiredMute=1 if value else 0, Channel=1)
-
     @property
     def uri(self):
         """Get the uri of the currently played medium"""
-        return self._avTransport.GetMediaInfo(InstanceID=1).CurrentURI
+        return self._renderers[0].uri()
 
     @property
     def uri_metadata(self):
         """Get CurrentURIMetaData"""
-        return self._avTransport.GetMediaInfo(InstanceID=1).CurrentURIMetaData
+        return self._renderers[0].uri_metadata()
 
     @property
     def track_uri(self):
         """Get TrackURI"""
-        return self._avTransport.GetPositionInfo(InstanceID=1).TrackURI
+        return self._renderers[0].track_uri()
 
     @property
     def track_metadata(self):
         """Get TrackURIMetaData"""
-        return self._avTransport.GetPositionInfo(InstanceID=1).TrackMetaData
+        return self._renderers[0].track_metadata()
 
+    @property
+    def track_duration(self):
+        """Get TrackDuration"""
+        return self._renderers[0].track_duration()
+
+    @property
+    def track_rel_time(self):
+        """Get RelTime"""
+        return self._renderers[0].track_rel_time()
+
+    @property
+    def track_abs_time(self):
+        """Get AbsTime"""
+        return self._renderers[0].track_abs_time()
 
 def __listDevicesThread():
     """Thread for LongPolling the listDevices Web-Service of Raumfeld"""
@@ -728,12 +702,6 @@ def __discoverHost():
             break
     return ""
 
-def __cleanup(updateThread):
-    logging.debug("Stopping Update Threads:")
-    #updateThread.join()
-    logging.debug("done.")
-
-
 def registerChangeCallback(callback):
     """Method to register a callback function which is called when the data structure has changed"""
     global __callback
@@ -863,6 +831,9 @@ def connectRoomToZone(roomUDN, zoneUDN=''):
     """Puts the room with the given roomUDN in the zone with the zoneUDN"""
     global hostBaseURL
     urllib2.urlopen("{0}/connectRoomToZone?roomUDN={1}&zoneUDN={2}".format(hostBaseURL, roomUDN, zoneUDN))
+
+def setLogging(level=logging.DEBUG):
+    logging.getLogger().setLevel(level)
 
 def init(hostIPAddress = ""):
     global hostBaseURL

@@ -1,4 +1,4 @@
-PyRaumfeld 0.3
+PyRaumfeld 0.4
 ========
 
 Python library for controlling the Teufel Raumfeld system
@@ -9,15 +9,15 @@ https://github.com/maierp/pyraumfeld
 Based on python-raumfeld by Thomas Feldmann:  
 https://github.com/tfeldmann/python-raumfeld
 
+The Lib provides a data structure representing the Zone and room config of Raumfeld
+
 ###Zone objects:
-* Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata  (readonly)
+* Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata, track_duration, track_rel_time, track_abs_time (readonly)
 * volume, mute (read/write)
-* play([uri(optional)]), next(), previous(), pause()
+* changeVolume(amount), play([uri(optional), meta(optional)]), next(), previous(), pause(), seek(amount, unit[_ABS_TIME_|REL_TIME|TRACK_NR])
 * A zone contains a list of Room objects which can be fetched with getRooms() -> returns an array
 * You can search for Rooms in a Zone by calling getRoomsByName(name) -> returns array of found rooms ...
 * ... or for a specific room by calling getRoomByUDN(udn) -> returns the room (None otherwise)
-
-The Lib provides a data structure representing the Zone and room config of Raumfeld
 
 ###Room objects:
 * Name, UDN (readonly)
@@ -26,13 +26,14 @@ The Lib provides a data structure representing the Zone and room config of Raumf
 * You can search for a Renderer in a Room by calling getRenderer(name) -> returns the renderer (None otherwise)
 
 ###Renderer objects:
-* Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata  (readonly)
-* volume, mute (read/write)
-* play([uri(optional)]), next(), previous(), pause()
+* Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata, track_duration, track_rel_time, track_abs_time (readonly)
+* volume, mute (read/write) 
+* changeVolume(amount), play([uri(optional)]), next(), previous(), pause(), seek(amount, unit[_ABS_TIME_|REL_TIME|TRACK_NR])
 
 ###Global functions are:
-* init([hostIP(optional)]) this inits the library and searches for the hostIP if none is provided.
+* setLogging(level) sets the logging level: logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL
 * registerChangeCallback(callback) here you can register your function which should be called when something in the data structure has changed
+* init([hostIP(optional)]) this initializes the library and searches for the hostIP if none is provided.
 * getRoomsByName(name) searches for all rooms containing the string in their name
 * getRoomByUDN(udn) returns the Room object defined by the UDN
 * getZones() returns the list of Zone objects
@@ -49,7 +50,6 @@ The Lib provides a data structure representing the Zone and room config of Raumf
 
 ###Global variables:
 * hostBaseURL (readonly) the base URL of the host
-* debug (True/False) to show debug messages
 
 ##Sample Programs:
 * PyRaumfeldSample.py: Shows the basic usage
