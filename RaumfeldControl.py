@@ -104,7 +104,7 @@ def getZoneVolume(name_udn):
         returndata["success"] = True
     return json.dumps(returndata)
 
-@route('/zone/<name_udn>/volume/<volume:int>')
+@route('/zone/<name_udn>/volume/<volume:re:\d+>')
 def setZoneVolume(name_udn, volume):
     """Sets the volume of the Zone defined by the name or UDN"""
     returndata = {}
@@ -115,7 +115,7 @@ def setZoneVolume(name_udn, volume):
         returndata["success"] = True
     return json.dumps(returndata)
 
-@route('/zone/<name_udn>/volume/<amount:re:[+-]d+>')
+@route('/zone/<name_udn>/volume/<amount:re:[+-]\d+>')
 def changeZoneVolume(name_udn, amount):
     """Changes the volume of the Zone defined by the name or UDN"""
     returndata = {}
