@@ -18,7 +18,7 @@ https://github.com/tfeldmann/python-raumfeld
 Zone objects:
 * Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata, track_duration, track_rel_time, track_abs_time (readonly)
 * volume, mute (read/write)
-* changeVolume(amount), play([uri(optional), meta(optional)]), next(), previous(), pause(), seek(amount, unit[_ABS_TIME_|REL_TIME|TRACK_NR])
+* changeVolume(amount), play([uri(optional), meta(optional)]), next(), previous(), pause(), seek(amount, unit[_ABS_TIME_|REL_TIME|TRACK_NR]), stop()
 * A zone contains a list of Room objects which can be fetched with getRooms() -> returns an array
 * You can search for Rooms in a Zone by calling getRoomsByName(name) -> returns array of found rooms ...
 * ... or for a specific room by calling getRoomByUDN(udn) -> returns the room (None otherwise)
@@ -32,7 +32,7 @@ Room objects:
 Renderer objects:
 * Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata, track_duration, track_rel_time, track_abs_time (readonly)
 * volume, mute (read/write) 
-* changeVolume(amount), play([uri(optional)]), next(), previous(), pause(), seek(amount, unit[_ABS_TIME_|REL_TIME|TRACK_NR])
+* changeVolume(amount), play([uri(optional)]), next(), previous(), pause(), seek(amount, unit[_ABS_TIME_|REL_TIME|TRACK_NR]), stop()
 
 Global functions are:
 * setLogging(level) sets the logging level: logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL
@@ -161,6 +161,10 @@ class Renderer(object):
     def seek(self, target, unit = 'ABS_TIME'):
         """Seek; unit = _ABS_TIME_/REL_TIME/TRACK_NR"""
         return self._avTransport.Seek(InstanceID=1, Unit = unit, Target = target)
+
+    def stop(self):
+        """Stop"""
+        self._avTransport.Stop(InstanceID=1)
 
     @property
     def transport_state(self):
@@ -333,6 +337,10 @@ class Room(object):
     def seek(self, target, unit = 'ABS_TIME'):
         """Seek; unit = _ABS_TIME_/REL_TIME/TRACK_NR"""
         return self._renderers[0].seek(target, unit)
+
+    def stop(self):
+        """Stop"""
+        self._renderers[0].stop()
 
     @property
     def transport_state(self):

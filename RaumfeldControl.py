@@ -164,6 +164,26 @@ def zonePlay(name_udn):
         returndata["success"] = True
     return json.dumps(returndata)
 
+@route('/zone/<name_udn>/pause')
+def zonePause(name_udn):
+    returndata = {}
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    if zone != None:
+        zone.pause()
+        returndata["success"] = True
+    return json.dumps(returndata)
+
+@route('/zone/<name_udn>/stop')
+def zoneStop(name_udn):
+    returndata = {}
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    if zone != None:
+        zone.stop()
+        returndata["success"] = True
+    return json.dumps(returndata)
+
 ################
 # Room actions
 ################
