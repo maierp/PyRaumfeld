@@ -8,52 +8,7 @@ Python library for controlling the Teufel Raumfeld system
 Based on python-raumfeld by Thomas Feldmann:
 https://github.com/tfeldmann/python-raumfeld
 
-##The Lib provides:
-* a data structure representing the Zone and room config of Raumfeld
-* playback and information functionality
-* functions for modifying the zone configuration
-* the functionality to register a callback function which gets called as soon as the zone configuration changed
-* immediate data update via long-polling of the Raumfeld WEB-API 
-
-Zone objects:
-* Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata, track_duration, track_rel_time, track_abs_time (readonly)
-* volume, mute (read/write)
-* changeVolume(amount), play([uri(optional), meta(optional)]), next(), previous(), pause(), seek(amount, unit[_ABS_TIME_|REL_TIME|TRACK_NR]), stop()
-* A zone contains a list of Room objects which can be fetched with getRooms() -> returns an array
-* You can search for Rooms in a Zone by calling getRoomsByName(name) -> returns array of found rooms ...
-* ... or for a specific room by calling getRoomByUDN(udn) -> returns the room (None otherwise)
-
-Room objects:
-* Name, UDN (readonly)
-* volume, mute (read/write)
-* A room contains a list of Renderer objects which can be fetched with getRenderers() -> returns an array
-* You can search for a Renderer in a Room by calling getRenderer(name) -> returns the renderer (None otherwise)
-
-Renderer objects:
-* Name, UDN, Location, Address, transport_state, uri, uri_metadata, track_uri, track_metadata, track_duration, track_rel_time, track_abs_time (readonly)
-* volume, mute (read/write) 
-* changeVolume(amount), play([uri(optional)]), next(), previous(), pause(), seek(amount, unit[_ABS_TIME_|REL_TIME|TRACK_NR]), stop()
-
-Global functions are:
-* setLogging(level) sets the logging level: logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL
-* registerChangeCallback(callback) here you can register your function which should be called when something in the data structure has changed
-* init([hostIP(optional)]) this initializes the library and searches for the hostIP if none is provided.
-* getRoomsByName(name) searches for all rooms containing the string in their name
-* getRoomByUDN(udn) returns the Room object defined by the UDN
-* getZones() returns the list of Zone objects
-* getUnassignedRooms() returns the list of unassigned room objects
-* getZonesByName(name) searches for all zones containing the string in their name
-* getZoneByUDN(udn) returns the Zone object defined by the UDN
-* getZoneWithRoom(room_obj) returns the Zone containing the provided room object
-* getZoneWithRoomName(name) returns the Zone containing a room defined by its name
-* getZoneWithRoomUDN(udn) returns the Zone containing a room defined by its UDN
-
-Zone-Configuration-Functions are:
-* dropRoomByUDN(udn) drops a room from its Zone
-* connectRoomToZone(room_udn, [zone_udn(optional)] puts the room with the given roomUDN in the zone with the zoneUDN. If no zone_udn is provided, a new zone is created
-
-Global variables:
-* hostBaseURL (readonly) the base URL of the host
+Further information see README.md
 '''
 
 import logging
@@ -69,7 +24,7 @@ from httplib import BadStatusLine
 from uuid import uuid4
 from urllib2 import URLError
 
-__version__ = '0.4'
+__version__ = '0.5'
 
 __zones = []
 __zonesLock = threading.Lock()
@@ -83,16 +38,84 @@ __unassignedElementsLock = threading.Lock()
 __deviceElements = [] # XML <device> elements from listDevices
 __deviceElementsLock = threading.Lock()
 
+__mediaServer = None
+
 __newZoneDataEvent = threading.Event()
 __newDeviceDataEvent = threading.Event()
 __dataProcessedEvent = threading.Event()
 
 __sessionUUID = uuid4().hex
-__mediaServerUDN = ""
+#__mediaServerUDN = ""
 __callback = None
 
 hostBaseURL = "http://hostip:47365"
 socket.setdefaulttimeout(None)
+
+class MediaServer(object):
+    """Raumfeld MediaServer"""
+
+    def __init__(self, udn, location):
+        self._udn = udn
+        self._location = location
+        scheme, netloc, _, _, _, _ = urllib2.urlparse.urlparse(location)
+        self._address = '{0}://{1}'.format(scheme, netloc)
+        # ToDo: get correct ControlLocation from the XML file
+        self._contentDirectory = SoapClient(
+            location='{0}/cd/Control'.format(self._address),
+            action='urn:schemas-upnp-org:service:ContentDirectory:1#',
+            namespace='http://schemas.xmlsoap.org/soap/envelope/',
+            soap_ns='soap', ns='s', exceptions=False)
+
+    @property
+    def UDN(self):
+        """Get the UDN of the MediaServer"""
+        return self._udn
+
+    @property
+    def Location(self):
+        """Get the location URI"""
+        return self._location
+
+    # Browse and Search
+    def browse(self, object_id, browse_flag = "BrowseMetadata", filter = "*", request_count = "25"):
+        """Browse Media Server"""
+        return self._contentDirectory.Browse(ObjectID = object_id, BrowseFlag = browse_flag,
+            Filter = filter, StartingIndex = "0", RequestedCount = request_count, SortCriteria = "").Result
+
+    def browse_children(self, object_id, filter = "*", request_count = "25"):
+        """Convenience function for browsing child elements; returns Result and NumberReturned"""
+        children = self._contentDirectory.Browse(ObjectID = object_id, BrowseFlag = "BrowseDirectChildren",
+            Filter = filter, StartingIndex = "0", RequestedCount = request_count, SortCriteria = "")
+        result = children.Result
+        count_returned = children.NumberReturned
+        return result, count_returned
+
+    def search(self, container_id, search_criteria, filter = "*", request_count = "25"):
+        """Search Media Server"""
+        return self._contentDirectory.Search(ContainerID = container_id, SearchCriteria = search_criteria,
+            Filter = filter, StartingIndex = "0", RequestedCount = request_count, SortCriteria = "").Result
+
+    # Queue Operations
+    def create_queue(self, desired_name, container_id):
+        """CreateQueue Returns GivenName and QueueID"""
+        self._contentDirectory.CreateQueue(DesiredName = desired_name, ContainerID = container_id)
+
+    def add_container(self, queue_id, container_id, source_id = "", criteria = "", start_index = "0", end_index = "0", position = "0"):
+        """AddContainerToQueue"""
+        self._contentDirectory.AddContainerToQueue(QueueID = queue_id, ContainerID = container_id,
+            SourceID = source_id, SearchCriteria = criteria, StartIndex = start_index, EndIndex = end_index, Position = position)
+
+    def add_item(self, queue_id, object_id, position):
+        """AddItemToQueue"""
+        self._contentDirectory.AddItemToQueue(QueueID = queue_id, ObjectID = object_id, Position = position)
+
+    def move_in_queue(self, object_id, new_position):
+        """MoveInQueue"""
+        self._contentDirectory.MoveInQueue(ObjectID = object_id, NewPosition = new_position)
+
+    def remove_from_queue(self, queue_id, from_position, to_position):
+        """RemoveFromQueue"""
+        self._contentDirectory.RemoveFromQueue(QueueID = queue_id, FromPosition = from_position, ToPosition = to_position)
 
 class Renderer(object):
     """Raumfeld Renderer"""
@@ -167,12 +190,6 @@ class Renderer(object):
         self._avTransport.Stop(InstanceID=1)
 
     @property
-    def transport_state(self):
-        """Get Current Transport State"""
-        return (self._avTransport.GetTransportInfo(InstanceID=1)
-                .CurrentTransportState)
-
-    @property
     def volume(self):
         """get/set the current volume"""
         try:
@@ -196,42 +213,6 @@ class Renderer(object):
     @mute.setter
     def mute(self, value):
         self._renderingControl.SetMute(InstanceID=1, DesiredMute=1 if value else 0, Channel=1)
-
-    @property
-    def uri(self):
-        """Get the uri of the currently played medium"""
-        return self._avTransport.GetMediaInfo(InstanceID=1).CurrentURI
-
-    @property
-    def uri_metadata(self):
-        """Get CurrentURIMetaData"""
-        return self._avTransport.GetMediaInfo(InstanceID=1).CurrentURIMetaData
-
-    @property
-    def track_uri(self):
-        """Get TrackURI"""
-        return self._avTransport.GetPositionInfo(InstanceID=1).TrackURI
-
-    @property
-    def track_metadata(self):
-        """Get TrackURIMetaData"""
-        return self._avTransport.GetPositionInfo(InstanceID=1).TrackMetaData
-
-    @property
-    def track_duration(self):
-        """Get TrackDuration"""
-        return self._avTransport.GetPositionInfo(InstanceID=1).TrackDuration
-
-    @property
-    def track_rel_time(self):
-        """Get RelTime"""
-        return self._avTransport.GetPositionInfo(InstanceID=1).RelTime
-
-    @property
-    def track_abs_time(self):
-        """Get AbsTime"""
-        return self._avTransport.GetPositionInfo(InstanceID=1).AbsTime
-
 
 class Zone(Renderer):
     """Raumfeld Zone"""
@@ -279,6 +260,121 @@ class Zone(Renderer):
             if room.Name.find(name):
                 rooms.append(room)
         return rooms
+
+    def bend(self, uri=None, meta=None):
+        """BendAVTransportURI"""
+        self._avTransport.BendAVTransportURI(
+                InstanceID=0, CurrentURI=uri, CurrentURIMetaData=meta)
+
+    """Generic function for getting all media info"""
+    @property
+    def media_info(self):
+        """Get the media information"""
+        info = self._avTransport.GetMediaInfo(InstanceID=1)
+        info_dict = {'NrTracks'           : info.NrTracks,
+                     'MediaDuration'      : info.MediaDuration,
+                     'CurrentURI'         : info.CurrentURI,
+                     'CurrentURIMetaData' : info.CurrentURIMetaData,
+                     'NextUri'            : info.NextUri,
+                     'NextUriMetaData'    : info.NextUriMetaData,
+                     'PlayMedium'         : info.PlayMedium,
+                     'RecordMedium'       : info.RecordMedium,
+                     'WriteStatus'        : info.WriteStatus
+                    }
+        return info_dict
+
+    """For each info there are extra functions"""
+    @property
+    def media_info_NrTracks(self):
+        return self.media_info()['NrTracks']
+    @property
+    def media_info_MediaDuration(self):
+        return self.media_info()['MediaDuration']
+    @property
+    def media_info_CurrentURI(self):
+        return self.media_info()['CurrentURI']
+    @property
+    def media_info_CurrentURIMetaData(self):
+        return self.media_info()['CurrentURIMetaData']
+    @property
+    def media_info_NextUri(self):
+        return self.media_info()['NextUri']
+    @property
+    def media_info_NextUriMetaData(self):
+        return self.media_info()['NextUriMetaData']
+    @property
+    def media_info_PlayMedium(self):
+        return self.media_info()['PlayMedium']
+    @property
+    def media_info_RecordMedium(self):
+        return self.media_info()['RecordMedium']
+    @property
+    def media_info_WriteStatus(self):
+        return self.media_info()['WriteStatus']
+
+    """Generic function for getting all position info"""
+    @property
+    def position_info(self):
+        """Get the position information"""
+        info = self._avTransport.GetPositionInfo(InstanceID=1)
+        info_dict = {'Track'         : info.Track,
+                     'TrackDuration' : info.TrackDuration,
+                     'TrackMetaData' : info.TrackMetaData,
+                     'TrackURI'      : info.TrackURI,
+                     'RelTime'       : info.RelTime,
+                     'AbsTime'       : info.AbsTime,
+                     'RelCount'      : info.RelCount,
+                     'AbsCount'      : info.AbsCount
+                    }
+        return info_dict
+
+    """For each info there are extra functions"""
+    @property
+    def position_info_Track(self):
+        return self.position_info()['Track']
+    @property
+    def position_info_TrackDuration(self):
+        return self.position_info()['TrackDuration']
+    @property
+    def position_info_TrackMetaData(self):
+        return self.position_info()['TrackMetaData']
+    @property
+    def position_info_TrackURI(self):
+        return self.position_info()['TrackURI']
+    @property
+    def position_info_RelTime(self):
+        return self.position_info()['RelTime']
+    @property
+    def position_info_AbsTime(self):
+        return self.position_info()['AbsTime']
+    @property
+    def position_info_RelCount(self):
+        return self.position_info()['RelCount']
+    @property
+    def position_info_AbsCount(self):
+        return self.position_info()['AbsCount']
+
+    """Generic function for getting all transport info"""
+    @property
+    def transport_info(self):
+        """Get the transport information"""
+        info = self._avTransport.GetTransportInfo(InstanceID=1)
+        info_dict = {'CurrentTransportState'  : info.CurrentTransportState,
+                     'CurrentTransportStatus' : info.CurrentTransportStatus,
+                     'CurrentSpeed'           : info.CurrentSpeed
+                    }
+        return info_dict
+
+    """For each info there are extra functions"""
+    @property
+    def transport_info_CurrentTransportState(self):
+        return self.transport_info()['CurrentTransportState']
+    @property
+    def transport_info_CurrentTransportStatus(self):
+        return self.transport_info()['CurrentTransportStatus']
+    @property
+    def transport_info_CurrentSpeed(self):
+        return self.transport_info()['CurrentSpeed']
 
 class Room(object):
     """Raumfeld Room"""
@@ -343,11 +439,6 @@ class Room(object):
         self._renderers[0].stop()
 
     @property
-    def transport_state(self):
-        """Get Current Transport State"""
-        return self._renderers[0].transport_state()
-
-    @property
     def volume(self):
         """get/set the current volume"""
         return self._renderers[0].volume
@@ -368,44 +459,9 @@ class Room(object):
     def mute(self, value):
         self._renderers[0].mute = value
 
-    @property
-    def uri(self):
-        """Get the uri of the currently played medium"""
-        return self._renderers[0].uri()
-
-    @property
-    def uri_metadata(self):
-        """Get CurrentURIMetaData"""
-        return self._renderers[0].uri_metadata()
-
-    @property
-    def track_uri(self):
-        """Get TrackURI"""
-        return self._renderers[0].track_uri()
-
-    @property
-    def track_metadata(self):
-        """Get TrackURIMetaData"""
-        return self._renderers[0].track_metadata()
-
-    @property
-    def track_duration(self):
-        """Get TrackDuration"""
-        return self._renderers[0].track_duration()
-
-    @property
-    def track_rel_time(self):
-        """Get RelTime"""
-        return self._renderers[0].track_rel_time()
-
-    @property
-    def track_abs_time(self):
-        """Get AbsTime"""
-        return self._renderers[0].track_abs_time()
-
 def __listDevicesThread():
     """Thread for LongPolling the listDevices Web-Service of Raumfeld"""
-    global hostBaseURL, __newDeviceDataEvent, __dataProcessedEvent, __deviceElements, __deviceElementsLock
+    global hostBaseURL, __newDeviceDataEvent, __dataProcessedEvent, __deviceElements, __deviceElementsLock, __mediaServer
     listDevices_updateID = ''
 
     while True:
@@ -423,7 +479,7 @@ def __listDevicesThread():
 
             for device_element in __deviceElements:
                 if device_element.childNodes[0].nodeValue == "Raumfeld MediaServer":
-                    __mediaServerUDN = device_element.getAttribute("udn")
+                    __mediaServer = MediaServer(device_element.getAttribute("udn"), device_element.getAttribute("location"))
                     break
 
             # signal changes
@@ -720,9 +776,13 @@ def registerChangeCallback(callback):
     global __callback
     __callback = callback
 
+def getMediaServer():
+    """Returns the Raumfeld Media Server"""
+    return __mediaServer
+
 def getMediaServerUDN():
     """Returns the UDN of the Raumfeld Media Server"""
-    return __mediaServerUDN
+    return __mediaServer.UDN
 
 def getRoomsByName(name):
     """Searches for rooms with a special name"""

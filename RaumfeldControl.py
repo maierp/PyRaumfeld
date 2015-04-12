@@ -39,7 +39,32 @@ def __getSingleRoom(name_udn):
 @route('/')
 def index():
     returndata = u'<html><body>'
-    
+    returndata += u'<b>Global actions:</b>'
+    returndata += u'<ul>'
+    returndata += u'<li>/ - this site</li>'
+    returndata += u'<li>/zones - list zones</li>'
+    returndata += u'<li>/unassignedRooms - list unassigned rooms</li>'
+    returndata += u'<li>/waitForChanges - returns the request when something changed in the zone structure</li>'
+    returndata += u'</ul>'
+    returndata += u'<b>Zone actions:</b>'
+    returndata += u'<ul>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/volume - get volume from the zone defined by the &lt;name&gt; or &lt;udn&gt;</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/volume/&lt;volume&gt; - set the volume of the zone defined by the &lt;name&gt; or &lt;udn&gt; to &lt;volume&gt;</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/volume/[+/-]&lt;amount&gt; - changes the volume of the zone defined by the &lt;name&gt; or &lt;udn&gt; by [+/-]&lt;amount&gt; percent</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/rooms - list the rooms in a zone defined by the &lt;name&gt; or &lt;udn&gt;</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/play/&lt;uri&gt; - plays &lt;uri&gt; in the given zone</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/play - start to play in the given zone</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/pause - pause the given zone</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/stop - stop the given zone</li>'
+    returndata += u'</ul>'
+    returndata += u'<b>Room actions:</b>'
+    returndata += u'<ul>'
+    returndata += u'<li>/room/&lt;name_udn&gt; - Returns the Room name and UDN in JSON format</li>'
+    returndata += u'<li>/room/&lt;name_udn&gt;/volume - get the volume of the given room</li>'
+    returndata += u'<li>/room/&lt;name_udn&gt;/volume/&lt;volume&gt; - set the volume of the given room</li>'
+    returndata += u'<li>/room/&lt;name_udn&gt;/zone - get the zone associated to the given room</li>'
+    returndata += u'<li>/room/&lt;name_udn&gt;/separate - Separates the the Room defined by the name or UDN from its zone</li>'
+    returndata += u'</ul>'
     returndata += u'</body></html>'
     return returndata
 
@@ -279,6 +304,7 @@ def __resetUpdateAvailableEventThread():
 
 raumfeld.registerChangeCallback(__updateAvailableCallback)
 raumfeld.init()
+print("Host URL: " +raumfeld.hostBaseURL)
 
 # Start observing the device list
 resetUpdateAvailableEventThread = threading.Thread(target=__resetUpdateAvailableEventThread)
