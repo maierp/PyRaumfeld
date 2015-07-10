@@ -256,10 +256,11 @@ def getRoomZone(name_udn):
     room = __getSingleRoom(name_udn)
     if room != None:
         zone = raumfeld.getZoneWithRoomUDN(room.UDN)
-        returndata["data"] = {}
-        returndata["data"]["udn"] = zone.UDN
-        returndata["data"]["name"] = zone.Name
-        returndata["success"] = True
+        if zone != None:
+            returndata["data"] = {}
+            returndata["data"]["udn"] = zone.UDN
+            returndata["data"]["name"] = zone.Name
+            returndata["success"] = True
     return json.dumps(returndata)
 
 @route('/room/<name_udn>/separate')
