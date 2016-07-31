@@ -541,7 +541,7 @@ def __listDevicesThread():
         try:
             request = urllib2.Request("{0}/{1}/listDevices".format(hostBaseURL, __sessionUUID),
                                       headers={"updateID": listDevices_updateID})
-            response = urllib2.urlopen(request)
+            response = urllib2.urlopen(request, timeout=900)  # Updating the device list at least every 15minutes
             listDevices_updateID = response.info().getheader('updateID')
             devices_xml = response.read()
             logging.debug(devices_xml.decode('utf-8'))
@@ -560,7 +560,14 @@ def __listDevicesThread():
             # signal changes
             __newDeviceDataEvent.set()
             __dataProcessedEvent.wait()
-        except (BadStatusLine, URLError, socket.timeout):
+        except URLError as e:
+            if isinstance(e.reason, socket.timeout):
+                logging.info("Updating deviceList...")
+                listDevices_updateID = ''
+            else:
+                logging.warn("Exception: {}".format(e))
+                time.sleep(1)
+        except (BadStatusLine, socket.timeout):
             logging.warning("Connection to host was lost. waiting 1 second and retrying...")
             time.sleep(1)
 
@@ -574,7 +581,7 @@ def __getZonesThread():
         try:
             request = urllib2.Request("{0}/{1}/getZones".format(hostBaseURL, __sessionUUID),
                                       headers={"updateID": getZones_updateID})
-            response = urllib2.urlopen(request)
+            response = urllib2.urlopen(request, timeout=900)  # Updating the zone list at least every 15minutes
             getZones_updateID = response.info().getheader('updateID')
             zone_xml = response.read()
             logging.debug(zone_xml.decode('utf-8'))
@@ -596,7 +603,14 @@ def __getZonesThread():
             # signal changes
             __newZoneDataEvent.set()
             __dataProcessedEvent.wait()
-        except (BadStatusLine, URLError, socket.timeout):
+        except URLError as e:
+            if isinstance(e.reason, socket.timeout):
+                logging.info("Updating zoneList...")
+                getZones_updateID = ''
+            else:
+                logging.warn("Exception: {}".format(e))
+                time.sleep(1)
+        except (BadStatusLine, socket.timeout):
             logging.warning("Connection to host was lost. waiting 1 second and retrying...")
             time.sleep(1)
 
@@ -1018,6 +1032,7 @@ def connectRoomToZone(roomUDN, zoneUDN=''):
 
 def setLogging(level=logging.DEBUG):
     logging.getLogger().setLevel(level)
+    logging.basicConfig(format='%(asctime)-15s %(message)s')
 
 
 def init(hostIPAddress=""):

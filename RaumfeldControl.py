@@ -272,8 +272,8 @@ def separateRoom(name_udn):
     room = __getSingleRoom(name_udn)
     if room != None:
         raumfeld.connectRoomToZone(room.UDN)
-        updateAvailableEvent.wait()
-        returndata["success"] = True
+        if updateAvailableEvent.wait(10):
+            returndata["success"] = True
     return json.dumps(returndata)
 
 
@@ -284,11 +284,11 @@ def separateRoom(name_udn):
 def waitForChanges():
     """Returns when an update in the DataStructure happened"""
     global updateAvailableEvent
-    updateAvailableEvent.wait()
     returndata = []
-    r = {}
-    r['changes'] = True
-    returndata.append(r)
+    if updateAvailableEvent.wait(10):
+        r = {}
+        r['changes'] = True
+        returndata.append(r)
     return json.dumps(returndata)
 
 
