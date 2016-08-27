@@ -6,6 +6,7 @@ Created on 25.01.2015
 '''
 
 import json
+import logging
 import raumfeld
 import threading
 from bottle import route, run
@@ -45,6 +46,7 @@ def index():
     returndata += u'<li>/zones - list zones</li>'
     returndata += u'<li>/unassignedRooms - list unassigned rooms</li>'
     returndata += u'<li>/waitForChanges - returns the request when something changed in the zone structure</li>'
+    returndata += u'<li>/update - updates the internal device and zone data</li>'
     returndata += u'</ul>'
     returndata += u'<b>Zone actions:</b>'
     returndata += u'<ul>'
@@ -292,6 +294,13 @@ def waitForChanges():
     return json.dumps(returndata)
 
 
+#################
+# Update Data
+##################
+@route('/update')
+def updateData():
+    raumfeld.updateData()
+
 def __updateAvailableCallback():
     global updateAvailableEvent
     updateAvailableEvent.set()
@@ -302,7 +311,7 @@ def __resetUpdateAvailableEventThread():
         updateAvailableEvent.wait()
         updateAvailableEvent.clear()
         
-
+raumfeld.setLogging(logging.INFO)
 raumfeld.registerChangeCallback(__updateAvailableCallback)
 raumfeld.init()
 print("Host URL: " +raumfeld.hostBaseURL)

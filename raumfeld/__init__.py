@@ -532,83 +532,98 @@ class Room(object):
         self._renderers[0].mute = value
 
 
+def __listDevices(listDevices_updateID=''):
+    """Fetch the  device list"""
+    global hostBaseURL, __newDeviceDataEvent, __deviceElements, __deviceElementsLock, __mediaServer
+
+    request = urllib2.Request("{0}/{1}/listDevices".format(hostBaseURL, __sessionUUID),
+                              headers={"updateID": listDevices_updateID})
+    response = urllib2.urlopen(request, timeout=900)  # Updating the device list at least every 15minutes
+    listDevices_updateID = response.info().getheader('updateID')
+    devices_xml = response.read()
+    logging.debug(devices_xml.decode('utf-8'))
+    dom = xml.dom.minidom.parseString(devices_xml)
+
+    __deviceElementsLock.acquire()
+    __deviceElements = dom.getElementsByTagName("device")
+    __deviceElementsLock.release()
+
+    for device_element in __deviceElements:
+        if device_element.childNodes[0].nodeValue == "Raumfeld MediaServer":
+            __mediaServer = MediaServer(device_element.getAttribute("udn"),
+                                        device_element.getAttribute("location"))
+            break
+
+    # signal changes
+    __newDeviceDataEvent.set()
+    return listDevices_updateID
+
+
 def __listDevicesThread():
     """Thread for LongPolling the listDevices Web-Service of Raumfeld"""
-    global hostBaseURL, __newDeviceDataEvent, __dataProcessedEvent, __deviceElements, __deviceElementsLock, __mediaServer
+    global __dataProcessedEvent
     listDevices_updateID = ''
 
     while True:
         try:
-            request = urllib2.Request("{0}/{1}/listDevices".format(hostBaseURL, __sessionUUID),
-                                      headers={"updateID": listDevices_updateID})
-            response = urllib2.urlopen(request, timeout=900)  # Updating the device list at least every 15minutes
-            listDevices_updateID = response.info().getheader('updateID')
-            devices_xml = response.read()
-            logging.debug(devices_xml.decode('utf-8'))
-            dom = xml.dom.minidom.parseString(devices_xml)
-
-            __deviceElementsLock.acquire()
-            __deviceElements = dom.getElementsByTagName("device")
-            __deviceElementsLock.release()
-
-            for device_element in __deviceElements:
-                if device_element.childNodes[0].nodeValue == "Raumfeld MediaServer":
-                    __mediaServer = MediaServer(device_element.getAttribute("udn"),
-                                                device_element.getAttribute("location"))
-                    break
-
-            # signal changes
-            __newDeviceDataEvent.set()
+            listDevices_updateID = __listDevices(listDevices_updateID)
             __dataProcessedEvent.wait()
         except URLError as e:
             if isinstance(e.reason, socket.timeout):
                 logging.info("Updating deviceList...")
                 listDevices_updateID = ''
             else:
-                logging.warn("Exception: {}".format(e))
+                logging.warn("Exception: {0}".format(e))
                 time.sleep(1)
         except (BadStatusLine, socket.timeout):
             logging.warning("Connection to host was lost. waiting 1 second and retrying...")
             time.sleep(1)
 
+def __getZones(getZones_updateID=''):
+    """Fetch zones list"""
+    global hostBaseURL, __newZoneDataEvent, __zoneElements, __zoneElementsLock, __unassignedElements, __unassignedElementsLock
+
+    request = urllib2.Request("{0}/{1}/getZones".format(hostBaseURL, __sessionUUID),
+                              headers={"updateID": getZones_updateID})
+    response = urllib2.urlopen(request, timeout=900)  # Updating the zone list at least every 15minutes
+    getZones_updateID = response.info().getheader('updateID')
+    zone_xml = response.read()
+    logging.debug(zone_xml.decode('utf-8'))
+    dom = xml.dom.minidom.parseString(zone_xml)
+
+    __zoneElementsLock.acquire()
+    __zoneElements = dom.getElementsByTagName("zone")
+    __zoneElementsLock.release()
+
+    # Get all the unassigned rooms
+    __unassignedElementsLock.acquire()
+    if dom.getElementsByTagName("unassignedRooms").length > 0:
+        __unassignedElements = dom.getElementsByTagName("unassignedRooms")[
+            0].getElementsByTagName('room')
+    else:
+        __unassignedElements = []
+    __unassignedElementsLock.release()
+
+    # signal changes
+    __newZoneDataEvent.set()
+    return getZones_updateID
+
 
 def __getZonesThread():
     """Thread for LongPolling the listDevices Web-Service of Raumfeld"""
-    global hostBaseURL, __newZoneDataEvent, __dataProcessedEvent, __zoneElements, __zoneElementsLock, __unassignedElements, __unassignedElementsLock
+    global __dataProcessedEvent
     getZones_updateID = ''
 
     while True:
         try:
-            request = urllib2.Request("{0}/{1}/getZones".format(hostBaseURL, __sessionUUID),
-                                      headers={"updateID": getZones_updateID})
-            response = urllib2.urlopen(request, timeout=900)  # Updating the zone list at least every 15minutes
-            getZones_updateID = response.info().getheader('updateID')
-            zone_xml = response.read()
-            logging.debug(zone_xml.decode('utf-8'))
-            dom = xml.dom.minidom.parseString(zone_xml)
-
-            __zoneElementsLock.acquire()
-            __zoneElements = dom.getElementsByTagName("zone")
-            __zoneElementsLock.release()
-
-            # Get all the unassigned rooms
-            __unassignedElementsLock.acquire()
-            if dom.getElementsByTagName("unassignedRooms").length > 0:
-                __unassignedElements = dom.getElementsByTagName("unassignedRooms")[
-                    0].getElementsByTagName('room')
-            else:
-                __unassignedElements = []
-            __unassignedElementsLock.release()
-
-            # signal changes
-            __newZoneDataEvent.set()
+            getZones_updateID = __getZones(getZones_updateID)
             __dataProcessedEvent.wait()
         except URLError as e:
             if isinstance(e.reason, socket.timeout):
                 logging.info("Updating zoneList...")
                 getZones_updateID = ''
             else:
-                logging.warn("Exception: {}".format(e))
+                logging.warn("Exception: {0}".format(e))
                 time.sleep(1)
         except (BadStatusLine, socket.timeout):
             logging.warning("Connection to host was lost. waiting 1 second and retrying...")
@@ -879,6 +894,12 @@ def __discoverHost():
             socket.setdefaulttimeout(None)
             break
     return ""
+
+
+def updateData():
+    """Update Device list and Zone list"""
+    __listDevices()
+    __getZones()
 
 
 def registerChangeCallback(callback):
