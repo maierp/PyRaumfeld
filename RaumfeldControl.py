@@ -211,6 +211,23 @@ def zoneStop(name_udn):
         returndata["success"] = True
     return json.dumps(returndata)
 
+@route('/zone/<name_udn>/play_pause')
+def zonePlay_Pause(name_udn):
+    # adds a single command that toggles between play and pause
+    returndata = {}
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    TState = str(zone.transport_info['CurrentTransportState'])
+    print(TState)
+    if zone != None:
+        if str(TState) == "STOPPED" or str(TState) == "PAUSED_PLAYBACK":
+                zone.mute = False
+                zone.play()
+        else:
+                zone.pause()
+        returndata["success"] = True
+    return json.dumps(returndata)
+
 ################
 # Room actions
 ################
