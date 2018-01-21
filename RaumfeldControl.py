@@ -378,4 +378,4 @@ resetUpdateAvailableEventThread = threading.Thread(target=__resetUpdateAvailable
 resetUpdateAvailableEventThread.daemon = True
 resetUpdateAvailableEventThread.start()
 
-run(host='192.168.0.9', port=8181, debug=True)
+run(host='0.0.0.0', port=8181, debug=True)
