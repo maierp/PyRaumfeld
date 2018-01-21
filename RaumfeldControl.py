@@ -59,6 +59,8 @@ def index():
     returndata += u'<li>/zone/&lt;name_udn&gt;/play - start to play in the given zone</li>'
     returndata += u'<li>/zone/&lt;name_udn&gt;/pause - pause the given zone</li>'
     returndata += u'<li>/zone/&lt;name_udn&gt;/play_pause - toggle between play and pause for the given zone</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/next - play next song in the given zone</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/previous - play previous song in the given zone</li>'
     returndata += u'<li>/zone/&lt;name_udn&gt;/stop - stop the given zone</li>'
     returndata += u'</ul>'
     returndata += u'<b>Room actions:</b>'
@@ -307,6 +309,30 @@ def zonePlay_Pause(name_udn):
         else:
                 zone.pause()
 #                sleep(0.3)
+        returndata["success"] = True
+    return json.dumps(returndata)
+
+@route('/zone/<name_udn>/next')
+def zoneNext(name_udn):
+    returndata = {}
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    TState = str(zone.transport_info['CurrentTransportState'])
+    print(TState)
+    if zone != None:
+        zone.next()
+        returndata["success"] = True
+    return json.dumps(returndata)
+
+@route('/zone/<name_udn>/previous')
+def zoneNext(name_udn):
+    returndata = {}
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    TState = str(zone.transport_info['CurrentTransportState'])
+    print(TState)
+    if zone != None:
+        zone.previous()
         returndata["success"] = True
     return json.dumps(returndata)
 
