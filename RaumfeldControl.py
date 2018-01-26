@@ -9,6 +9,7 @@ import json
 import logging
 import raumfeld
 import threading
+#from urlparse import urlparse
 from bottle import route, run
 from urllib import quote, unquote
 
@@ -57,6 +58,9 @@ def index():
     returndata += u'<li>/zone/&lt;name_udn&gt;/play/&lt;uri&gt; - plays &lt;uri&gt; in the given zone</li>'
     returndata += u'<li>/zone/&lt;name_udn&gt;/play - start to play in the given zone</li>'
     returndata += u'<li>/zone/&lt;name_udn&gt;/pause - pause the given zone</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/play_pause - toggle between play and pause for the given zone</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/next - play next song in the given zone</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/previous - play previous song in the given zone</li>'
     returndata += u'<li>/zone/&lt;name_udn&gt;/stop - stop the given zone</li>'
     returndata += u'</ul>'
     returndata += u'<b>Room actions:</b>'
@@ -72,7 +76,7 @@ def index():
 
 ################
 # Global actions
-################    
+################
 @route('/zones')
 def getZones():
     """Returns the Zone names and UDNs in JSON format"""
@@ -180,7 +184,7 @@ def zonePlayURI(name_udn, uri):
         zone.play(unquote(uri))
         returndata["success"] = True
     return json.dumps(returndata)
-    
+
 @route('/zone/<name_udn>/play')
 def zonePlay(name_udn):
     returndata = {}
@@ -278,6 +282,59 @@ def separateRoom(name_udn):
             returndata["success"] = True
     return json.dumps(returndata)
 
+@route('/zone/<name_udn>/transport_info')
+def getTransportInfo(name_udn):
+    """Gets the rooms of the Zone defined by the name or UDN"""
+    returndata = {}
+    returndata["data"] = []
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    if zone != None:
+        returndata["data"].append(zone.transport_info_CurrentTransportState(zone))
+        returndata["success"] = True
+    return json.dumps(returndata)
+
+
+@route('/zone/<name_udn>/play_pause')
+def zonePlay_Pause(name_udn):
+    returndata = {}
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    TState = str(zone.transport_info['CurrentTransportState'])
+    print(TState)
+    if zone != None:
+        if str(TState) == "STOPPED" or str(TState) == "PAUSED_PLAYBACK":
+                zone.mute = False
+                zone.play()
+        else:
+                zone.pause()
+#                sleep(0.3)
+        returndata["success"] = True
+    return json.dumps(returndata)
+
+@route('/zone/<name_udn>/next')
+def zoneNext(name_udn):
+    returndata = {}
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    TState = str(zone.transport_info['CurrentTransportState'])
+    print(TState)
+    if zone != None:
+        zone.next()
+        returndata["success"] = True
+    return json.dumps(returndata)
+
+@route('/zone/<name_udn>/previous')
+def zoneNext(name_udn):
+    returndata = {}
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    TState = str(zone.transport_info['CurrentTransportState'])
+    print(TState)
+    if zone != None:
+        zone.previous()
+        returndata["success"] = True
+    return json.dumps(returndata)
 
 ##################
 # Wait for Changes
@@ -310,7 +367,7 @@ def __resetUpdateAvailableEventThread():
     while True:
         updateAvailableEvent.wait()
         updateAvailableEvent.clear()
-        
+
 raumfeld.setLogging(logging.INFO)
 raumfeld.registerChangeCallback(__updateAvailableCallback)
 raumfeld.init()
