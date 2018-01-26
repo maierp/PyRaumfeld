@@ -9,7 +9,6 @@ import json
 import logging
 import raumfeld
 import threading
-#from urlparse import urlparse
 from bottle import route, run
 from urllib import quote, unquote
 
@@ -62,6 +61,7 @@ def index():
     returndata += u'<li>/zone/&lt;name_udn&gt;/next - play next song in the given zone</li>'
     returndata += u'<li>/zone/&lt;name_udn&gt;/previous - play previous song in the given zone</li>'
     returndata += u'<li>/zone/&lt;name_udn&gt;/stop - stop the given zone</li>'
+    returndata += u'<li>/zone/&lt;name_udn&gt;/transport_info - show transport information of the given zone</li>'
     returndata += u'</ul>'
     returndata += u'<b>Room actions:</b>'
     returndata += u'<ul>'
@@ -215,6 +215,55 @@ def zoneStop(name_udn):
         returndata["success"] = True
     return json.dumps(returndata)
 
+@route('/zone/<name_udn>/play_pause')
+def zonePlay_Pause(name_udn):
+    returndata = {}
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    if zone != None:
+        TState = str(zone.transport_info['CurrentTransportState'])
+        if str(TState) == "STOPPED" or str(TState) == "PAUSED_PLAYBACK":
+                zone.mute = False
+                zone.play()
+        else:
+                zone.pause()
+        returndata["success"] = True
+    return json.dumps(returndata)
+
+@route('/zone/<name_udn>/next')
+def zoneNext(name_udn):
+    returndata = {}
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    if zone != None:
+        zone.next()
+        returndata["success"] = True
+    return json.dumps(returndata)
+
+@route('/zone/<name_udn>/previous')
+def zoneNext(name_udn):
+    returndata = {}
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    if zone != None:
+        zone.previous()
+        returndata["success"] = True
+    return json.dumps(returndata)
+
+@route('/zone/<name_udn>/transport_info')
+def getTransportInfo(name_udn):
+    """Get the transport information of the Zone defined by the name or UDN"""
+    returndata = {}
+    returndata["data"] = []
+    returndata["success"] = False
+    zone = __getSingleZone(name_udn)
+    if zone != None:
+        returndata["data"].append(zone.transport_info_CurrentTransportState(zone))
+        returndata["success"] = True
+    return json.dumps(returndata)
+
+
+
 ################
 # Room actions
 ################
@@ -282,59 +331,7 @@ def separateRoom(name_udn):
             returndata["success"] = True
     return json.dumps(returndata)
 
-@route('/zone/<name_udn>/transport_info')
-def getTransportInfo(name_udn):
-    """Gets the rooms of the Zone defined by the name or UDN"""
-    returndata = {}
-    returndata["data"] = []
-    returndata["success"] = False
-    zone = __getSingleZone(name_udn)
-    if zone != None:
-        returndata["data"].append(zone.transport_info_CurrentTransportState(zone))
-        returndata["success"] = True
-    return json.dumps(returndata)
 
-
-@route('/zone/<name_udn>/play_pause')
-def zonePlay_Pause(name_udn):
-    returndata = {}
-    returndata["success"] = False
-    zone = __getSingleZone(name_udn)
-    TState = str(zone.transport_info['CurrentTransportState'])
-    print(TState)
-    if zone != None:
-        if str(TState) == "STOPPED" or str(TState) == "PAUSED_PLAYBACK":
-                zone.mute = False
-                zone.play()
-        else:
-                zone.pause()
-#                sleep(0.3)
-        returndata["success"] = True
-    return json.dumps(returndata)
-
-@route('/zone/<name_udn>/next')
-def zoneNext(name_udn):
-    returndata = {}
-    returndata["success"] = False
-    zone = __getSingleZone(name_udn)
-    TState = str(zone.transport_info['CurrentTransportState'])
-    print(TState)
-    if zone != None:
-        zone.next()
-        returndata["success"] = True
-    return json.dumps(returndata)
-
-@route('/zone/<name_udn>/previous')
-def zoneNext(name_udn):
-    returndata = {}
-    returndata["success"] = False
-    zone = __getSingleZone(name_udn)
-    TState = str(zone.transport_info['CurrentTransportState'])
-    print(TState)
-    if zone != None:
-        zone.previous()
-        returndata["success"] = True
-    return json.dumps(returndata)
 
 ##################
 # Wait for Changes
