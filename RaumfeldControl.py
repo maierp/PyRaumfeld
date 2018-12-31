@@ -12,6 +12,14 @@ import threading
 from bottle import route, run
 from urllib import quote, unquote
 
+# Added parsing of options
+import argparse
+
+parser = argparse.ArgumentParser(description='Raumfeld server')
+parser.add_argument('-i', dest="ip", default="127.0.0.1", help="IP address to be used (default = 127.0.0.1")
+parser.add_argument('-p', dest="port", default="8080", help="port to run the server (default = 8080)")
+
+
 updateAvailableEvent = threading.Event()
 
 def __getSingleZone(name_udn):
@@ -365,14 +373,19 @@ def __resetUpdateAvailableEventThread():
         updateAvailableEvent.wait()
         updateAvailableEvent.clear()
 
-raumfeld.setLogging(logging.INFO)
-raumfeld.registerChangeCallback(__updateAvailableCallback)
-raumfeld.init()
-print("Host URL: " +raumfeld.hostBaseURL)
+def main():
+    # Retrieve command line arguments
+    args = parser.parse_args()
+    
+    raumfeld.init()
+    print("Host URL: " +raumfeld.hostBaseURL)
 
-# Start observing the device list
-resetUpdateAvailableEventThread = threading.Thread(target=__resetUpdateAvailableEventThread)
-resetUpdateAvailableEventThread.daemon = True
-resetUpdateAvailableEventThread.start()
+    # Start observing the device list
+    resetUpdateAvailableEventThread = threading.Thread(target=__resetUpdateAvailableEventThread)
+    resetUpdateAvailableEventThread.daemon = True
+    resetUpdateAvailableEventThread.start()
 
-run(host='0.0.0.0', port=8080, debug=True)
+    run(host=args.ip, port=args.port, debug=True)
+
+if __name__ == "__main__":
+   main()
