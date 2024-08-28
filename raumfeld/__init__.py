@@ -15,10 +15,10 @@ import logging
 import socket
 import threading
 import time
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import xml.dom.minidom
-from httplib import BadStatusLine
-from urllib2 import URLError
+from http.client import BadStatusLine
+from urllib.error import URLError
 from uuid import uuid4
 
 from pysimplesoap.client import SoapClient
@@ -57,7 +57,7 @@ class MediaServer(object):
     def __init__(self, udn, location):
         self._udn = udn
         self._location = location
-        scheme, netloc, _, _, _, _ = urllib2.urlparse.urlparse(location)
+        scheme, netloc, _, _, _, _ = urllib.parse.urlparse(location)
         self._address = '{0}://{1}'.format(scheme, netloc)
         # ToDo: get correct ControlLocation from the XML file
         self._contentDirectory = SoapClient(
@@ -135,7 +135,7 @@ class Renderer(object):
         self._name = name
         self._udn = udn
         self._location = location
-        scheme, netloc, _, _, _, _ = urllib2.urlparse.urlparse(location)
+        scheme, netloc, _, _, _, _ = urllib.parse.urlparse(location)
         self._address = '{0}://{1}'.format(scheme, netloc)
         # ToDo: get correct ControlLocation from the XML file
         self._renderingControl = SoapClient(
@@ -153,7 +153,7 @@ class Renderer(object):
         self._name = name
         self._udn = udn
         self._location = location
-        scheme, netloc, _, _, _, _ = urllib2.urlparse.urlparse(location)
+        scheme, netloc, _, _, _, _ = urllib.parse.urlparse(location)
         self._address = '{0}://{1}'.format(scheme, netloc)
         # ToDo: get correct ControlLocation from the XML file
         self._renderingControl = SoapClient(
@@ -198,7 +198,7 @@ class Renderer(object):
         else:
             self._avTransport.Play(InstanceID=1, Speed=2)
 
-    def next(self):
+    def __next__(self):
         """Next"""
         self._avTransport.Next(InstanceID=1)
 
@@ -252,7 +252,7 @@ class Zone(Renderer):
         self._udn = udn
         self._name = name
         self._location = location
-        scheme, netloc, _, _, _, _ = urllib2.urlparse.urlparse(location)
+        scheme, netloc, _, _, _, _ = urllib.parse.urlparse(location)
         self._address = '{0}://{1}'.format(scheme, netloc)
         # ToDo: get correct ControlLocation from the XML file
         self._renderingControl = SoapClient(
@@ -270,7 +270,7 @@ class Zone(Renderer):
         self._udn = udn
         self._name = name
         self._location = location
-        scheme, netloc, _, _, _, _ = urllib2.urlparse.urlparse(location)
+        scheme, netloc, _, _, _, _ = urllib.parse.urlparse(location)
         self._address = '{0}://{1}'.format(scheme, netloc)
         # ToDo: get correct ControlLocation from the XML file
         self._renderingControl = SoapClient(
@@ -490,9 +490,9 @@ class Room(object):
         """
         self._renderers[0].play(uri, meta)
 
-    def next(self):
+    def __next__(self):
         """Next"""
-        self._renderers[0].next()
+        next(self._renderers[0])
 
     def previous(self):
         """Previous"""
@@ -536,10 +536,10 @@ def __listDevices(listDevices_updateID=''):
     """Fetch the  device list"""
     global hostBaseURL, __newDeviceDataEvent, __deviceElements, __deviceElementsLock, __mediaServer
 
-    request = urllib2.Request("{0}/{1}/listDevices".format(hostBaseURL, __sessionUUID),
+    request = urllib.request.Request("{0}/{1}/listDevices".format(hostBaseURL, __sessionUUID),
                               headers={"updateID": listDevices_updateID})
-    response = urllib2.urlopen(request, timeout=900)  # Updating the device list at least every 15minutes
-    listDevices_updateID = response.info().getheader('updateID')
+    response = urllib.request.urlopen(request, timeout=900)  # Updating the device list at least every 15minutes
+    listDevices_updateID = response.getheader('updateID')
     devices_xml = response.read()
     logging.debug(devices_xml.decode('utf-8'))
     dom = xml.dom.minidom.parseString(devices_xml)
@@ -583,10 +583,10 @@ def __getZones(getZones_updateID=''):
     """Fetch zones list"""
     global hostBaseURL, __newZoneDataEvent, __zoneElements, __zoneElementsLock, __unassignedElements, __unassignedElementsLock
 
-    request = urllib2.Request("{0}/{1}/getZones".format(hostBaseURL, __sessionUUID),
+    request = urllib.request.Request("{0}/{1}/getZones".format(hostBaseURL, __sessionUUID),
                               headers={"updateID": getZones_updateID})
-    response = urllib2.urlopen(request, timeout=900)  # Updating the zone list at least every 15minutes
-    getZones_updateID = response.info().getheader('updateID')
+    response = urllib.request.urlopen(request, timeout=900)  # Updating the zone list at least every 15minutes
+    getZones_updateID = response.getheader('updateID')
     zone_xml = response.read()
     logging.debug(zone_xml.decode('utf-8'))
     dom = xml.dom.minidom.parseString(zone_xml)
@@ -884,7 +884,7 @@ def __discoverHost():
                     sock.close()
                     location = line.split(' ')[1].strip()
                     # Extract the netloc fragment of the URL
-                    netloc = urllib2.urlparse.urlparse(location)[1]
+                    netloc = urllib.parse.urlparse(location)[1]
                     sock.close()
                     socket.setdefaulttimeout(None)
                     # Return the IP-Address
@@ -1041,13 +1041,13 @@ def getZoneWithRoomUDN(udn):
 def dropRoomByUDN(udn):
     """Drops the room with the given UDN from the zone it is in"""
     global hostBaseURL
-    urllib2.urlopen("{0}/dropRoomJob?roomUDN={1}".format(hostBaseURL, udn))
+    urllib.request.urlopen("{0}/dropRoomJob?roomUDN={1}".format(hostBaseURL, udn))
 
 
 def connectRoomToZone(roomUDN, zoneUDN=''):
     """Puts the room with the given roomUDN in the zone with the zoneUDN"""
     global hostBaseURL
-    urllib2.urlopen(
+    urllib.request.urlopen(
         "{0}/connectRoomToZone?roomUDN={1}&zoneUDN={2}".format(hostBaseURL, roomUDN, zoneUDN))
 
 
@@ -1073,4 +1073,4 @@ def init(hostIPAddress=""):
 
 
 if __name__ == '__main__':
-    print('Library version {0}'.format(__version__))
+    print(('Library version {0}'.format(__version__)))

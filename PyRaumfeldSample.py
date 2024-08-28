@@ -16,20 +16,20 @@ import logging
 
 
 def dataHasBeenUpdated():
-    print("########## " + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " ##########")
+    print(("########## " + strftime("%Y-%m-%d %H:%M:%S", gmtime()) + " ##########"))
     print("Zones:")
     for zone in raumfeld.getZones():
-        print("UDN: " + zone.UDN + " Name: " + zone.Name + " Location: " + zone.Location)
+        print(("UDN: " + zone.UDN + " Name: " + zone.Name + " Location: " + zone.Location))
         for room in zone.getRooms():
-            print("\tUDN: " + room.UDN + " Name: " + room.Name)
+            print(("\tUDN: " + room.UDN + " Name: " + room.Name))
             for renderer in room.getRenderers():
-                print("\t\tUDN: " + renderer.UDN + " Name: " + renderer.Name + " Location: " + renderer.Location + " Volume: " + unicode(renderer.volume))
+                print(("\t\tUDN: " + renderer.UDN + " Name: " + renderer.Name + " Location: " + renderer.Location + " Volume: " + str(renderer.volume)))
      
     print("Unassigned Rooms:")
     for room in raumfeld.getUnassignedRooms():
-        print("Name: " + room.Name + " UDN: " + room.UDN)
+        print(("Name: " + room.Name + " UDN: " + room.UDN))
         for renderer in room.getRenderers():
-            print("\tUDN: " + renderer.UDN + " Name: " + renderer.Name + " Location: " + renderer.Location)
+            print(("\tUDN: " + renderer.UDN + " Name: " + renderer.Name + " Location: " + renderer.Location))
     print("########## This gets updated when the config changes. To QUIT press any key... ##########")
      
     #kueche = raumfeld.getRoomsByName(u'Küche')[0]
@@ -46,7 +46,9 @@ def dataHasBeenUpdated():
 raumfeld.setLogging(logging.WARN);
 raumfeld.registerChangeCallback(dataHasBeenUpdated)
 raumfeld.init() # or with the host IP: raumfeld.init("192.168.0.10")
-print("Host URL: " +raumfeld.hostBaseURL)
+print(("Host URL: " +raumfeld.hostBaseURL))
+
 
 # To QUIT press any key...
-raw_input()
+input()
+
